@@ -22,7 +22,9 @@ export default function SnakeGame() {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
   const [phase, setPhase] = useState("idle");
-  const [msg, setMsg] = useState("Press any arrow key or a d-pad button to start");
+  const [wrapMode, setWrapMode] = useState(false);
+  const wrapRef = useRef(false);
+  const [msg, setMsg] = useState("Press WASD / arrow keys or tap a d-pad button to start");
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -92,17 +94,27 @@ export default function SnakeGame() {
       snake, dir: { x: 1, y: 0 }, nextDir: { x: 1, y: 0 },
       food: spawnFood(snake), phase: "running", scoreVal: 0,
     };
-    setScore(0); setPhase("running"); setMsg("Use arrows or d-pad to steer");
+    setScore(0); setPhase("running"); setMsg("WASD or arrows to steer");
     tickerRef.current = setInterval(() => {
       const s = stateRef.current;
       if (s.phase !== "running") return;
       s.dir = s.nextDir;
-      const head = { x: s.snake[0].x + s.dir.x, y: s.snake[0].y + s.dir.y };
-      if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS ||
-          s.snake.some(b => b.x === head.x && b.y === head.y)) {
+      let head = { x: s.snake[0].x + s.dir.x, y: s.snake[0].y + s.dir.y };
+      if (wrapRef.current) {
+        head.x = (head.x + COLS) % COLS;
+        head.y = (head.y + ROWS) % ROWS;
+      } else if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
         s.phase = "dead";
         clearInterval(tickerRef.current);
-        setBest(prev => { const nb = Math.max(prev, s.scoreVal); return nb; });
+        setBest(prev => Math.max(prev, s.scoreVal));
+        setPhase("dead");
+        setMsg(`Game over! Score: ${s.scoreVal} — press New Game to retry`);
+        draw(); return;
+      }
+      if (s.snake.some(b => b.x === head.x && b.y === head.y)) {
+        s.phase = "dead";
+        clearInterval(tickerRef.current);
+        setBest(prev => Math.max(prev, s.scoreVal));
         setPhase("dead");
         setMsg(`Game over! Score: ${s.scoreVal} — press New Game to retry`);
         draw(); return;
@@ -125,14 +137,22 @@ export default function SnakeGame() {
       setPhase("paused"); setMsg("Paused — press Resume to continue"); draw();
     } else if (s.phase === "paused") {
       s.phase = "running";
-      setPhase("running"); setMsg("Use arrows or d-pad to steer");
+      setPhase("running"); setMsg("WASD or arrows to steer");
       tickerRef.current = setInterval(() => {
         const cur = stateRef.current;
         if (cur.phase !== "running") return;
         cur.dir = cur.nextDir;
-        const head = { x: cur.snake[0].x + cur.dir.x, y: cur.snake[0].y + cur.dir.y };
-        if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS ||
-            cur.snake.some(b => b.x === head.x && b.y === head.y)) {
+        let head = { x: cur.snake[0].x + cur.dir.x, y: cur.snake[0].y + cur.dir.y };
+        if (wrapRef.current) {
+          head.x = (head.x + COLS) % COLS;
+          head.y = (head.y + ROWS) % ROWS;
+        } else if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+          cur.phase = "dead"; clearInterval(tickerRef.current);
+          setBest(prev => Math.max(prev, cur.scoreVal));
+          setPhase("dead"); setMsg(`Game over! Score: ${cur.scoreVal} — press New Game to retry`);
+          draw(); return;
+        }
+        if (cur.snake.some(b => b.x === head.x && b.y === head.y)) {
           cur.phase = "dead"; clearInterval(tickerRef.current);
           setBest(prev => Math.max(prev, cur.scoreVal));
           setPhase("dead"); setMsg(`Game over! Score: ${cur.scoreVal} — press New Game to retry`);
@@ -158,7 +178,11 @@ export default function SnakeGame() {
 
   useEffect(() => {
     const onKey = e => {
-      const map = { ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0] };
+      const map = {
+        ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0],
+        w: [0,-1], s: [0,1], a: [-1,0], d: [1,0],
+        W: [0,-1], S: [0,1], A: [-1,0], D: [1,0],
+      };
       if (!map[e.key]) return;
       e.preventDefault();
       const [dx, dy] = map[e.key];
@@ -182,9 +206,29 @@ export default function SnakeGame() {
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"1.5rem 0",
       fontFamily:"'Space Mono', monospace", userSelect:"none" }}>
+      <div style={{ fontSize:22, fontWeight:700, letterSpacing:"0.08em", marginBottom:16 }}>🐍 SNAKE</div>
       <div style={{ display:"flex", justifyContent:"space-between", width:W, marginBottom:8 }}>
         <div><div style={{ fontSize:11, color:"#888", letterSpacing:"0.1em" }}>SCORE</div>
           <div style={{ fontSize:22, fontWeight:700 }}>{score}</div></div>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:11, color:"#888", letterSpacing:"0.1em", marginBottom:4 }}>MODE</div>
+          <div style={{ display:"flex", gap:0, border:"1px solid #ccc", borderRadius:8, overflow:"hidden" }}>
+            <button
+              style={{ fontFamily:"'Space Mono', monospace", fontSize:11, padding:"4px 10px", border:"none",
+                cursor:"pointer", background: !wrapMode ? "#222" : "transparent",
+                color: !wrapMode ? "#fff" : "#888", letterSpacing:"0.04em" }}
+              onClick={() => { setWrapMode(false); wrapRef.current = false; }}>
+              WALL
+            </button>
+            <button
+              style={{ fontFamily:"'Space Mono', monospace", fontSize:11, padding:"4px 10px", border:"none",
+                cursor:"pointer", background: wrapMode ? "#222" : "transparent",
+                color: wrapMode ? "#fff" : "#888", letterSpacing:"0.04em" }}
+              onClick={() => { setWrapMode(true); wrapRef.current = true; }}>
+              WRAP
+            </button>
+          </div>
+        </div>
         <div style={{ textAlign:"right" }}><div style={{ fontSize:11, color:"#888", letterSpacing:"0.1em" }}>BEST</div>
           <div style={{ fontSize:22, fontWeight:700 }}>{best}</div></div>
       </div>
