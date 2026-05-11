@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const COLS = 25, ROWS = 22, CELL = 22, SPEED = 110;
+const W = COLS * CELL, H = ROWS * CELL;
 
 function rand(n) { return Math.floor(Math.random() * n); }
 
@@ -10,6 +11,26 @@ function spawnFood(snake) {
   do { pos = { x: rand(COLS), y: rand(ROWS) }; }
   while (occupied.has(`${pos.x},${pos.y}`));
   return pos;
+}
+
+// Fallback for browsers that don't support ctx.roundRect
+function fillRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+  ctx.fill();
 }
 
 export default function SnakeGame() {
@@ -51,9 +72,7 @@ export default function SnakeGame() {
       const g = Math.round(158 + (80 - 158) * t);
       const b = Math.round(117 + (65 - 117) * t);
       ctx.fillStyle = `rgb(${r},${g},${b})`;
-      ctx.beginPath();
-      ctx.roundRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2, i === 0 ? 6 : 3);
-      ctx.fill();
+      fillRoundRect(ctx, s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2, i === 0 ? 6 : 3);
       if (i === 0) {
         ctx.fillStyle = "rgba(255,255,255,0.7)";
         const h = dir.x !== 0;
@@ -67,9 +86,7 @@ export default function SnakeGame() {
     });
 
     ctx.fillStyle = "#D85A30";
-    ctx.beginPath();
-    ctx.roundRect(food.x * CELL + 2, food.y * CELL + 2, CELL - 4, CELL - 4, 5);
-    ctx.fill();
+    fillRoundRect(ctx, food.x * CELL + 2, food.y * CELL + 2, CELL - 4, CELL - 4, 5);
     ctx.fillStyle = "#F0997B";
     ctx.fillRect(food.x * CELL + CELL * 0.4, food.y * CELL + 1, 2, 5);
 
@@ -195,56 +212,70 @@ export default function SnakeGame() {
   useEffect(() => { draw(); }, [draw]);
   useEffect(() => () => clearInterval(tickerRef.current), []);
 
-  const W = COLS * CELL, H = ROWS * CELL;
-  const btnStyle = { fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "7px 18px",
-    border: "1px solid #ccc", borderRadius: 8, background: "transparent", cursor: "pointer", letterSpacing: "0.06em" };
+  const btnStyle = {
+    fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "7px 18px",
+    border: "1px solid #ccc", borderRadius: 8, background: "transparent", cursor: "pointer", letterSpacing: "0.06em",
+  };
   const dBtn = (label, dx, dy) => (
     <button style={{ ...btnStyle, width: 44, height: 44, padding: 0, fontSize: 18 }}
       onClick={() => steer(dx, dy)} aria-label={label}>{label}</button>
   );
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"1.5rem 0",
-      fontFamily:"'Space Mono', monospace", userSelect:"none" }}>
-      <div style={{ fontSize:22, fontWeight:700, letterSpacing:"0.08em", marginBottom:16 }}>🐍 SNAKE</div>
-      <div style={{ display:"flex", justifyContent:"space-between", width:W, marginBottom:8 }}>
-        <div><div style={{ fontSize:11, color:"#888", letterSpacing:"0.1em" }}>SCORE</div>
-          <div style={{ fontSize:22, fontWeight:700 }}>{score}</div></div>
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:11, color:"#888", letterSpacing:"0.1em", marginBottom:4 }}>MODE</div>
-          <div style={{ display:"flex", gap:0, border:"1px solid #ccc", borderRadius:8, overflow:"hidden" }}>
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      padding: "1.5rem 0", fontFamily: "'Space Mono', monospace", userSelect: "none",
+      width: "100%", minHeight: "100vh", boxSizing: "border-box",
+    }}>
+      <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 16 }}>🐍 SNAKE</div>
+      <div style={{ display: "flex", justifyContent: "space-between", width: W, marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#888", letterSpacing: "0.1em" }}>SCORE</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{score}</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "#888", letterSpacing: "0.1em", marginBottom: 4 }}>MODE</div>
+          <div style={{ display: "flex", gap: 0, border: "1px solid #ccc", borderRadius: 8, overflow: "hidden" }}>
             <button
-              style={{ fontFamily:"'Space Mono', monospace", fontSize:11, padding:"4px 10px", border:"none",
-                cursor:"pointer", background: !wrapMode ? "#222" : "transparent",
-                color: !wrapMode ? "#fff" : "#888", letterSpacing:"0.04em" }}
+              style={{
+                fontFamily: "'Space Mono', monospace", fontSize: 11, padding: "4px 10px", border: "none",
+                cursor: "pointer", background: !wrapMode ? "#222" : "transparent",
+                color: !wrapMode ? "#fff" : "#888", letterSpacing: "0.04em",
+              }}
               onClick={() => { setWrapMode(false); wrapRef.current = false; }}>
               WALL
             </button>
             <button
-              style={{ fontFamily:"'Space Mono', monospace", fontSize:11, padding:"4px 10px", border:"none",
-                cursor:"pointer", background: wrapMode ? "#222" : "transparent",
-                color: wrapMode ? "#fff" : "#888", letterSpacing:"0.04em" }}
+              style={{
+                fontFamily: "'Space Mono', monospace", fontSize: 11, padding: "4px 10px", border: "none",
+                cursor: "pointer", background: wrapMode ? "#222" : "transparent",
+                color: wrapMode ? "#fff" : "#888", letterSpacing: "0.04em",
+              }}
               onClick={() => { setWrapMode(true); wrapRef.current = true; }}>
               WRAP
             </button>
           </div>
         </div>
-        <div style={{ textAlign:"right" }}><div style={{ fontSize:11, color:"#888", letterSpacing:"0.1em" }}>BEST</div>
-          <div style={{ fontSize:22, fontWeight:700 }}>{best}</div></div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 11, color: "#888", letterSpacing: "0.1em" }}>BEST</div>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{best}</div>
+        </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H}
-        style={{ display:"block", border:"1px solid #ddd", borderRadius:4 }} />
-      <div style={{ marginTop:12, fontSize:12, color:"#888", minHeight:18, textAlign:"center", maxWidth:W }}>{msg}</div>
-      <div style={{ display:"flex", gap:8, marginTop:12 }}>
+        style={{ display: "block", border: "1px solid #ddd", borderRadius: 4 }} />
+      <div style={{ marginTop: 12, fontSize: 12, color: "#888", textAlign: "center", width: W }}>{msg}</div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button style={btnStyle} onClick={startGame}>NEW GAME</button>
         <button style={btnStyle} onClick={togglePause}
           disabled={phase === "idle" || phase === "dead"}>
           {phase === "paused" ? "RESUME" : "PAUSE"}
         </button>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 44px)", gap:4, marginTop:16 }}>
+      {/* D-pad: standard cross layout */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 44px)", gap: 4, marginTop: 16 }}>
         <span />{dBtn("↑", 0, -1)}<span />
-        {dBtn("←", -1, 0)}{dBtn("↓", 0, 1)}{dBtn("→", 1, 0)}
+        {dBtn("←", -1, 0)}<span />{dBtn("→", 1, 0)}
+        <span />{dBtn("↓", 0, 1)}<span />
       </div>
     </div>
   );
