@@ -2,11 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 const COLS = 20;
 const ROWS = 20;
+const CELL = 24;
 const TICK_MS = 150;
+const BOARD_W = COLS * CELL;
+const BOARD_H = ROWS * CELL;
 
-const Direction = { UP: 'UP', DOWN: 'DOWN', LEFT: 'LEFT', RIGHT: 'RIGHT' };
-
-const opposite = { UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT' };
+const DIR = { UP: [0,-1], DOWN: [0,1], LEFT: [-1,0], RIGHT: [1,0] };
+const OPPOSITE = { UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT' };
+const INIT_SNAKE = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
 
 function randomCell(snake) {
   while (true) {
@@ -15,294 +18,309 @@ function randomCell(snake) {
   }
 }
 
-function move(head, dir) {
-  const d = { UP: [0, -1], DOWN: [0, 1], LEFT: [-1, 0], RIGHT: [1, 0] }[dir];
-  return { x: head.x + d[0], y: head.y + d[1] };
-}
-
-function inBounds(cell) {
-  return cell.x >= 0 && cell.x < COLS && cell.y >= 0 && cell.y < ROWS;
-}
-
-const INIT_SNAKE = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+const styles = {
+  page: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', minHeight: '100vh', width: '100%',
+    background: '#0f172a', userSelect: 'none', padding: '24px 0',
+    boxSizing: 'border-box',
+  },
+  title: {
+    fontSize: 28, fontWeight: 700, letterSpacing: '0.2em',
+    color: '#4ade80', marginBottom: 20, textTransform: 'uppercase',
+    fontFamily: 'monospace',
+  },
+  scoreBar: {
+    display: 'flex', width: BOARD_W, marginBottom: 12,
+    border: '1px solid #334155', borderRadius: 12, overflow: 'hidden',
+  },
+  scoreCell: {
+    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', padding: '10px 0', background: '#1e293b',
+  },
+  scoreDivider: { width: 1, background: '#334155' },
+  scoreLabel: {
+    fontSize: 10, fontWeight: 600, letterSpacing: '0.15em',
+    color: '#64748b', textTransform: 'uppercase', marginBottom: 4,
+    fontFamily: 'monospace',
+  },
+  scoreValue: { fontSize: 28, fontWeight: 700, lineHeight: 1, fontFamily: 'monospace' },
+  board: {
+    position: 'relative', width: BOARD_W, height: BOARD_H,
+    background: '#071a09', border: '3px solid #166534', borderRadius: 8,
+    overflow: 'hidden',
+    boxShadow: '0 0 30px 6px rgba(22,101,52,0.35), inset 0 0 40px rgba(0,0,0,0.4)',
+  },
+  overlay: {
+    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center',
+    background: 'rgba(0,0,0,0.78)',
+  },
+  overlayTitle: { fontWeight: 700, marginBottom: 8, fontFamily: 'monospace' },
+  overlayHint: {
+    fontSize: 13, color: '#94a3b8', fontFamily: 'monospace', textAlign: 'center',
+  },
+  kbd: {
+    background: '#334155', color: '#e2e8f0', padding: '1px 6px',
+    borderRadius: 4, fontSize: 12, fontFamily: 'monospace',
+  },
+  controls: {
+    display: 'flex', gap: 10, marginTop: 14, width: BOARD_W,
+  },
+  btn: (color) => ({
+    flex: 1, padding: '10px 0', fontWeight: 700, fontSize: 13,
+    letterSpacing: '0.1em', textTransform: 'uppercase', border: 'none',
+    borderRadius: 8, cursor: 'pointer', background: color, color: '#fff',
+    fontFamily: 'monospace', transition: 'opacity 0.15s',
+  }),
+  dpad: {
+    display: 'grid', gridTemplateColumns: 'repeat(3, 48px)',
+    gridTemplateRows: 'repeat(3, 48px)', gap: 4, marginTop: 16,
+  },
+  dBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: '#1e293b', border: '1px solid #334155', borderRadius: 8,
+    color: '#94a3b8', fontSize: 18, cursor: 'pointer', fontWeight: 700,
+  },
+  dBtnCenter: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8,
+    color: '#1e293b', fontSize: 18, cursor: 'pointer',
+  },
+  hint: {
+    marginTop: 14, fontSize: 11, color: '#334155',
+    fontFamily: 'monospace', letterSpacing: '0.08em',
+  },
+};
 
 export default function SnakeGame() {
   const [snake, setSnake] = useState(INIT_SNAKE);
   const [food, setFood] = useState({ x: 15, y: 10 });
-  const [dir, setDir] = useState(Direction.RIGHT);
-  const [status, setStatus] = useState('idle'); // idle | running | paused | dead
+  const [dir, setDir] = useState('RIGHT');
+  const [status, setStatus] = useState('idle');
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(0);
+  const [best, setBest] = useState(0);
 
-  const dirRef = useRef(dir);
   const snakeRef = useRef(snake);
   const foodRef = useRef(food);
+  const dirRef = useRef(dir);
+  const scoreRef = useRef(score);
   const statusRef = useRef(status);
 
-  dirRef.current = dir;
   snakeRef.current = snake;
   foodRef.current = food;
+  dirRef.current = dir;
+  scoreRef.current = score;
   statusRef.current = status;
 
   const reset = useCallback(() => {
-    const initSnake = INIT_SNAKE;
-    setSnake(initSnake);
-    setFood(randomCell(initSnake));
-    setDir(Direction.RIGHT);
+    const s = [...INIT_SNAKE];
+    setSnake(s);
+    setFood(randomCell(s));
+    setDir('RIGHT');
     setScore(0);
     setStatus('running');
   }, []);
 
-  // Keyboard controls
   useEffect(() => {
     const keyMap = {
-      ArrowUp: Direction.UP,
-      ArrowDown: Direction.DOWN,
-      ArrowLeft: Direction.LEFT,
-      ArrowRight: Direction.RIGHT,
-      w: Direction.UP,
-      s: Direction.DOWN,
-      a: Direction.LEFT,
-      d: Direction.RIGHT,
+      ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT',
+      w: 'UP', s: 'DOWN', a: 'LEFT', d: 'RIGHT',
+      W: 'UP', S: 'DOWN', A: 'LEFT', D: 'RIGHT',
     };
-
     const handler = (e) => {
       const newDir = keyMap[e.key];
       if (newDir) {
         e.preventDefault();
-        if (statusRef.current === 'running' && newDir !== opposite[dirRef.current]) {
+        if (statusRef.current === 'running' && newDir !== OPPOSITE[dirRef.current]) {
           setDir(newDir);
+          dirRef.current = newDir;
         }
       }
       if (e.key === ' ') {
         e.preventDefault();
-        if (statusRef.current === 'running') setStatus('paused');
-        else if (statusRef.current === 'paused') setStatus('running');
-        else if (statusRef.current === 'idle' || statusRef.current === 'dead') reset();
+        const st = statusRef.current;
+        if (st === 'running') setStatus('paused');
+        else if (st === 'paused') setStatus('running');
+        else if (st === 'idle' || st === 'dead') reset();
       }
     };
-
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [reset]);
 
-  // Game tick
   useEffect(() => {
     if (status !== 'running') return;
+    const id = setInterval(() => {
+      const cur = snakeRef.current;
+      const [dx, dy] = DIR[dirRef.current];
+      const head = { x: cur[0].x + dx, y: cur[0].y + dy };
 
-    const interval = setInterval(() => {
-      const currentSnake = snakeRef.current;
-      const currentFood = foodRef.current;
-      const currentDir = dirRef.current;
-
-      const newHead = move(currentSnake[0], currentDir);
-
-      // Wall or self collision
-      const hitWall = !inBounds(newHead);
-      const hitSelf = currentSnake.some(s => s.x === newHead.x && s.y === newHead.y);
-
-      if (hitWall || hitSelf) {
+      if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS ||
+          cur.some(s => s.x === head.x && s.y === head.y)) {
+        clearInterval(id);
         setStatus('dead');
-        setHighScore(prev => Math.max(prev, score));
+        setBest(prev => Math.max(prev, scoreRef.current));
         return;
       }
 
-      const ateFood = newHead.x === currentFood.x && newHead.y === currentFood.y;
-      const newSnake = ateFood
-        ? [newHead, ...currentSnake]
-        : [newHead, ...currentSnake.slice(0, -1)];
-
-      if (ateFood) {
-        setScore(prev => prev + 10);
-        setFood(randomCell(newSnake));
+      const ate = head.x === foodRef.current.x && head.y === foodRef.current.y;
+      const next = ate ? [head, ...cur] : [head, ...cur.slice(0, -1)];
+      if (ate) {
+        const newScore = scoreRef.current + 10;
+        setScore(newScore);
+        scoreRef.current = newScore;
+        setFood(randomCell(next));
       }
-
-      setSnake(newSnake);
+      setSnake(next);
     }, TICK_MS);
+    return () => clearInterval(id);
+  }, [status]);
 
-    return () => clearInterval(interval);
-  }, [status, score]);
+  const steer = useCallback((d) => {
+    const st = statusRef.current;
+    if (st === 'idle' || st === 'dead') { reset(); return; }
+    if (st === 'paused') { setStatus('running'); return; }
+    if (d !== OPPOSITE[dirRef.current]) {
+      setDir(d);
+      dirRef.current = d;
+    }
+  }, [reset]);
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-slate-950 py-8 select-none">
+    <div style={styles.page}>
+      <div style={styles.title}>🐍 Snake</div>
 
-      {/* Title */}
-      <h1 className="text-3xl font-bold tracking-widest uppercase mb-5"
-          style={{ color: '#4ade80', letterSpacing: '0.2em' }}>
-        🐍 SNAKE
-      </h1>
-
-      {/* Scoreboard — clearly separated from the game board */}
-      <div className="flex items-stretch gap-0 mb-5 rounded-xl overflow-hidden border border-slate-700"
-           style={{ width: COLS * 24 }}>
-        <div className="flex-1 flex flex-col items-center justify-center py-3 bg-slate-800">
-          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">Score</span>
-          <span className="text-3xl font-bold text-white">{score}</span>
+      {/* Score bar */}
+      <div style={styles.scoreBar}>
+        <div style={styles.scoreCell}>
+          <span style={styles.scoreLabel}>Score</span>
+          <span style={{ ...styles.scoreValue, color: '#f1f5f9' }}>{score}</span>
         </div>
-        <div className="w-px bg-slate-700" />
-        <div className="flex-1 flex flex-col items-center justify-center py-3 bg-slate-800">
-          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">Best</span>
-          <span className="text-3xl font-bold text-yellow-400">{highScore}</span>
+        <div style={styles.scoreDivider} />
+        <div style={styles.scoreCell}>
+          <span style={styles.scoreLabel}>Best</span>
+          <span style={{ ...styles.scoreValue, color: '#fbbf24' }}>{best}</span>
         </div>
       </div>
 
-      {/* Game board — distinct dark-green background, strong border */}
-      <div
-        className="relative rounded-lg overflow-hidden"
-        style={{
-          width: COLS * 24,
-          height: ROWS * 24,
-          background: '#0a1f0d',
-          border: '3px solid #166534',
-          boxShadow: '0 0 24px 4px rgba(22,101,52,0.4)',
-        }}
-      >
-        {/* Grid lines */}
-        <svg className="absolute inset-0" width={COLS * 24} height={ROWS * 24} style={{ opacity: 0.08 }}>
+      {/* Game board */}
+      <div style={styles.board}>
+        {/* Grid */}
+        <svg style={{ position: 'absolute', inset: 0, opacity: 0.07 }}
+             width={BOARD_W} height={BOARD_H}>
           {Array.from({ length: COLS + 1 }, (_, i) => (
-            <line key={`v${i}`} x1={i * 24} y1={0} x2={i * 24} y2={ROWS * 24} stroke="#4ade80" strokeWidth={0.5} />
+            <line key={`v${i}`} x1={i*CELL} y1={0} x2={i*CELL} y2={BOARD_H}
+                  stroke="#4ade80" strokeWidth={0.5} />
           ))}
           {Array.from({ length: ROWS + 1 }, (_, i) => (
-            <line key={`h${i}`} x1={0} y1={i * 24} x2={COLS * 24} y2={i * 24} stroke="#4ade80" strokeWidth={0.5} />
+            <line key={`h${i}`} x1={0} y1={i*CELL} x2={BOARD_W} y2={i*CELL}
+                  stroke="#4ade80" strokeWidth={0.5} />
           ))}
         </svg>
 
         {/* Food */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            left: food.x * 24 + 3,
-            top: food.y * 24 + 3,
-            width: 18,
-            height: 18,
-            background: '#f87171',
-            boxShadow: '0 0 10px 3px rgba(248,113,113,0.7)',
-          }}
-        />
+        <div style={{
+          position: 'absolute',
+          left: food.x * CELL + 3, top: food.y * CELL + 3,
+          width: CELL - 6, height: CELL - 6,
+          background: '#f87171', borderRadius: '50%',
+          boxShadow: '0 0 10px 3px rgba(248,113,113,0.8)',
+        }} />
 
         {/* Snake */}
-        {snake.map((seg, i) => {
-          const isHead = i === 0;
-          return (
-            <div
-              key={`${seg.x},${seg.y},${i}`}
-              className="absolute rounded-sm"
-              style={{
-                left: seg.x * 24 + 1,
-                top: seg.y * 24 + 1,
-                width: 22,
-                height: 22,
-                backgroundColor: isHead ? '#4ade80' : `hsl(${140 - i * 2}, 65%, ${48 - i * 0.4}%)`,
-                boxShadow: isHead ? '0 0 8px 3px rgba(74,222,128,0.7)' : undefined,
-              }}
-            />
-          );
-        })}
+        {snake.map((seg, i) => (
+          <div key={`${seg.x},${seg.y},${i}`} style={{
+            position: 'absolute',
+            left: seg.x * CELL + 1, top: seg.y * CELL + 1,
+            width: CELL - 2, height: CELL - 2,
+            borderRadius: i === 0 ? 6 : 3,
+            background: i === 0
+              ? '#4ade80'
+              : `hsl(${142 - i*1.5}, 60%, ${46 - i*0.4}%)`,
+            boxShadow: i === 0 ? '0 0 8px 3px rgba(74,222,128,0.7)' : undefined,
+          }} />
+        ))}
 
-        {/* Overlay for idle / paused / dead */}
+        {/* Overlay */}
         {status !== 'running' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center"
-               style={{ background: 'rgba(0,0,0,0.75)' }}>
+          <div style={styles.overlay}>
             {status === 'idle' && (
               <>
-                <p className="text-2xl font-bold mb-2" style={{ color: '#4ade80' }}>Ready?</p>
-                <p className="text-sm text-slate-300">
-                  Press <kbd className="bg-slate-700 text-white px-2 py-0.5 rounded text-xs">Space</kbd> or tap Start
-                </p>
+                <div style={{ ...styles.overlayTitle, fontSize: 22, color: '#4ade80' }}>
+                  Ready?
+                </div>
+                <div style={styles.overlayHint}>
+                  Press <kbd style={styles.kbd}>Space</kbd> or tap Start
+                </div>
               </>
             )}
             {status === 'paused' && (
               <>
-                <p className="text-2xl font-bold mb-2 text-yellow-400">Paused</p>
-                <p className="text-sm text-slate-300">
-                  Press <kbd className="bg-slate-700 text-white px-2 py-0.5 rounded text-xs">Space</kbd> to resume
-                </p>
+                <div style={{ ...styles.overlayTitle, fontSize: 22, color: '#fbbf24' }}>
+                  Paused
+                </div>
+                <div style={styles.overlayHint}>
+                  Press <kbd style={styles.kbd}>Space</kbd> to resume
+                </div>
               </>
             )}
             {status === 'dead' && (
               <>
-                <p className="text-3xl font-bold mb-1 text-red-400">Game Over</p>
-                <p className="text-lg font-semibold text-white mb-3">Score: {score}</p>
-                <p className="text-sm text-slate-300">
-                  Press <kbd className="bg-slate-700 text-white px-2 py-0.5 rounded text-xs">Space</kbd> or tap Restart
-                </p>
+                <div style={{ ...styles.overlayTitle, fontSize: 26, color: '#f87171' }}>
+                  Game Over
+                </div>
+                <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: 16,
+                              marginBottom: 8, fontFamily: 'monospace' }}>
+                  Score: {score}
+                </div>
+                <div style={styles.overlayHint}>
+                  Press <kbd style={styles.kbd}>Space</kbd> or tap Restart
+                </div>
               </>
             )}
           </div>
         )}
       </div>
 
-      {/* Action buttons — full width of board, clearly separate from game */}
-      <div className="flex gap-3 mt-4" style={{ width: COLS * 24 }}>
+      {/* Action buttons */}
+      <div style={styles.controls}>
         {(status === 'idle' || status === 'dead') && (
-          <button
-            onClick={reset}
-            className="flex-1 py-2.5 font-bold rounded-lg text-sm uppercase tracking-wider transition-colors"
-            style={{ background: '#16a34a', color: '#fff' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
-            onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
-          >
+          <button style={styles.btn('#16a34a')} onClick={reset}>
             {status === 'dead' ? 'Restart' : 'Start'}
           </button>
         )}
         {status === 'running' && (
-          <button
-            onClick={() => setStatus('paused')}
-            className="flex-1 py-2.5 font-bold rounded-lg text-sm uppercase tracking-wider transition-colors"
-            style={{ background: '#ca8a04', color: '#fff' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#a16207'}
-            onMouseLeave={e => e.currentTarget.style.background = '#ca8a04'}
-          >
+          <button style={styles.btn('#ca8a04')} onClick={() => setStatus('paused')}>
             Pause
           </button>
         )}
         {status === 'paused' && (
-          <button
-            onClick={() => setStatus('running')}
-            className="flex-1 py-2.5 font-bold rounded-lg text-sm uppercase tracking-wider transition-colors"
-            style={{ background: '#16a34a', color: '#fff' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
-            onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
-          >
-            Resume
-          </button>
+          <>
+            <button style={styles.btn('#16a34a')} onClick={() => setStatus('running')}>
+              Resume
+            </button>
+            <button style={styles.btn('#475569')} onClick={reset}>
+              Restart
+            </button>
+          </>
         )}
       </div>
 
-      {/* Mobile D-pad */}
-      <div className="mt-5 grid grid-cols-3 gap-2" style={{ width: 148 }}>
-        <div />
-        <button
-          onPointerDown={() => dir !== Direction.DOWN && setDir(Direction.UP)}
-          className="flex items-center justify-center rounded-lg text-lg font-bold transition-colors"
-          style={{ height: 44, background: '#1e293b', color: '#94a3b8' }}
-        >▲</button>
-        <div />
-        <button
-          onPointerDown={() => dir !== Direction.RIGHT && setDir(Direction.LEFT)}
-          className="flex items-center justify-center rounded-lg text-lg font-bold"
-          style={{ height: 44, background: '#1e293b', color: '#94a3b8' }}
-        >◀</button>
-        <button
-          onPointerDown={() => { if (status === 'idle' || status === 'dead') reset(); }}
-          className="flex items-center justify-center rounded-lg"
-          style={{ height: 44, background: '#0f172a', color: '#334155', fontSize: 10 }}
-        >●</button>
-        <button
-          onPointerDown={() => dir !== Direction.LEFT && setDir(Direction.RIGHT)}
-          className="flex items-center justify-center rounded-lg text-lg font-bold"
-          style={{ height: 44, background: '#1e293b', color: '#94a3b8' }}
-        >▶</button>
-        <div />
-        <button
-          onPointerDown={() => dir !== Direction.UP && setDir(Direction.DOWN)}
-          className="flex items-center justify-center rounded-lg text-lg font-bold"
-          style={{ height: 44, background: '#1e293b', color: '#94a3b8' }}
-        >▼</button>
-        <div />
+      {/* D-pad */}
+      <div style={styles.dpad}>
+        <span />
+        <button style={styles.dBtn} onPointerDown={() => steer('UP')}>▲</button>
+        <span />
+        <button style={styles.dBtn} onPointerDown={() => steer('LEFT')}>◀</button>
+        <button style={styles.dBtnCenter} onPointerDown={reset}>●</button>
+        <button style={styles.dBtn} onPointerDown={() => steer('RIGHT')}>▶</button>
+        <span />
+        <button style={styles.dBtn} onPointerDown={() => steer('DOWN')}>▼</button>
+        <span />
       </div>
 
-      <p className="mt-5 text-xs text-slate-600 tracking-wide">WASD / Arrow keys · Space = pause</p>
+      <p style={styles.hint}>WASD / Arrow keys · Space = pause</p>
     </div>
   );
 }
