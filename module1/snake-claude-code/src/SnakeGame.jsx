@@ -9,11 +9,10 @@ const Direction = { UP: 'UP', DOWN: 'DOWN', LEFT: 'LEFT', RIGHT: 'RIGHT' };
 const opposite = { UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT' };
 
 function randomCell(snake) {
-  let cell;
-  do {
-    cell = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
-  } while (snake.some(s => s.x === cell.x && s.y === cell.y));
-  return cell;
+  while (true) {
+    const cell = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+    if (!snake.some(s => s.x === cell.x && s.y === cell.y)) return cell;
+  }
 }
 
 function move(head, dir) {
@@ -124,37 +123,42 @@ export default function SnakeGame() {
     return () => clearInterval(interval);
   }, [status, score]);
 
-  const snakeSet = new Set(snake.map(s => `${s.x},${s.y}`));
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 select-none">
-      <h1 className="text-4xl font-bold text-green-400 mb-2 tracking-widest uppercase">
-        Snake
+    <div className="flex flex-col items-center min-h-screen bg-slate-950 py-8 select-none">
+
+      {/* Title */}
+      <h1 className="text-3xl font-bold tracking-widest uppercase mb-5"
+          style={{ color: '#4ade80', letterSpacing: '0.2em' }}>
+        🐍 SNAKE
       </h1>
 
-      {/* Scoreboard */}
-      <div className="flex gap-8 mb-4">
-        <div className="text-center">
-          <div className="text-xs text-gray-400 uppercase tracking-widest">Score</div>
-          <div className="text-2xl font-bold text-white">{score}</div>
+      {/* Scoreboard — clearly separated from the game board */}
+      <div className="flex items-stretch gap-0 mb-5 rounded-xl overflow-hidden border border-slate-700"
+           style={{ width: COLS * 24 }}>
+        <div className="flex-1 flex flex-col items-center justify-center py-3 bg-slate-800">
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">Score</span>
+          <span className="text-3xl font-bold text-white">{score}</span>
         </div>
-        <div className="text-center">
-          <div className="text-xs text-gray-400 uppercase tracking-widest">Best</div>
-          <div className="text-2xl font-bold text-yellow-400">{highScore}</div>
+        <div className="w-px bg-slate-700" />
+        <div className="flex-1 flex flex-col items-center justify-center py-3 bg-slate-800">
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">Best</span>
+          <span className="text-3xl font-bold text-yellow-400">{highScore}</span>
         </div>
       </div>
 
-      {/* Game board */}
+      {/* Game board — distinct dark-green background, strong border */}
       <div
-        className="relative border-2 border-green-700 bg-gray-800"
-        style={{ width: COLS * 24, height: ROWS * 24 }}
+        className="relative rounded-lg overflow-hidden"
+        style={{
+          width: COLS * 24,
+          height: ROWS * 24,
+          background: '#0a1f0d',
+          border: '3px solid #166534',
+          boxShadow: '0 0 24px 4px rgba(22,101,52,0.4)',
+        }}
       >
         {/* Grid lines */}
-        <svg
-          className="absolute inset-0 opacity-10"
-          width={COLS * 24}
-          height={ROWS * 24}
-        >
+        <svg className="absolute inset-0" width={COLS * 24} height={ROWS * 24} style={{ opacity: 0.08 }}>
           {Array.from({ length: COLS + 1 }, (_, i) => (
             <line key={`v${i}`} x1={i * 24} y1={0} x2={i * 24} y2={ROWS * 24} stroke="#4ade80" strokeWidth={0.5} />
           ))}
@@ -165,13 +169,14 @@ export default function SnakeGame() {
 
         {/* Food */}
         <div
-          className="absolute rounded-full bg-red-500 shadow-lg"
+          className="absolute rounded-full"
           style={{
             left: food.x * 24 + 3,
             top: food.y * 24 + 3,
             width: 18,
             height: 18,
-            boxShadow: '0 0 8px 2px rgba(239,68,68,0.7)',
+            background: '#f87171',
+            boxShadow: '0 0 10px 3px rgba(248,113,113,0.7)',
           }}
         />
 
@@ -187,9 +192,8 @@ export default function SnakeGame() {
                 top: seg.y * 24 + 1,
                 width: 22,
                 height: 22,
-                backgroundColor: isHead ? '#4ade80' : `hsl(${140 - i * 2}, 70%, ${50 - i * 0.5}%)`,
-                boxShadow: isHead ? '0 0 6px 2px rgba(74,222,128,0.6)' : undefined,
-                transition: 'left 0.05s, top 0.05s',
+                backgroundColor: isHead ? '#4ade80' : `hsl(${140 - i * 2}, 65%, ${48 - i * 0.4}%)`,
+                boxShadow: isHead ? '0 0 8px 3px rgba(74,222,128,0.7)' : undefined,
               }}
             />
           );
@@ -197,36 +201,46 @@ export default function SnakeGame() {
 
         {/* Overlay for idle / paused / dead */}
         {status !== 'running' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 rounded">
+          <div className="absolute inset-0 flex flex-col items-center justify-center"
+               style={{ background: 'rgba(0,0,0,0.75)' }}>
             {status === 'idle' && (
               <>
-                <p className="text-green-400 text-2xl font-bold mb-2">Ready?</p>
-                <p className="text-gray-300 text-sm">Press <kbd className="bg-gray-700 px-1 rounded">Space</kbd> or tap Start</p>
+                <p className="text-2xl font-bold mb-2" style={{ color: '#4ade80' }}>Ready?</p>
+                <p className="text-sm text-slate-300">
+                  Press <kbd className="bg-slate-700 text-white px-2 py-0.5 rounded text-xs">Space</kbd> or tap Start
+                </p>
               </>
             )}
             {status === 'paused' && (
               <>
-                <p className="text-yellow-400 text-2xl font-bold mb-2">Paused</p>
-                <p className="text-gray-300 text-sm">Press <kbd className="bg-gray-700 px-1 rounded">Space</kbd> to resume</p>
+                <p className="text-2xl font-bold mb-2 text-yellow-400">Paused</p>
+                <p className="text-sm text-slate-300">
+                  Press <kbd className="bg-slate-700 text-white px-2 py-0.5 rounded text-xs">Space</kbd> to resume
+                </p>
               </>
             )}
             {status === 'dead' && (
               <>
-                <p className="text-red-400 text-3xl font-bold mb-1">Game Over</p>
-                <p className="text-white text-lg mb-3">Score: {score}</p>
-                <p className="text-gray-300 text-sm">Press <kbd className="bg-gray-700 px-1 rounded">Space</kbd> or tap Restart</p>
+                <p className="text-3xl font-bold mb-1 text-red-400">Game Over</p>
+                <p className="text-lg font-semibold text-white mb-3">Score: {score}</p>
+                <p className="text-sm text-slate-300">
+                  Press <kbd className="bg-slate-700 text-white px-2 py-0.5 rounded text-xs">Space</kbd> or tap Restart
+                </p>
               </>
             )}
           </div>
         )}
       </div>
 
-      {/* Buttons */}
-      <div className="flex gap-3 mt-5">
+      {/* Action buttons — full width of board, clearly separate from game */}
+      <div className="flex gap-3 mt-4" style={{ width: COLS * 24 }}>
         {(status === 'idle' || status === 'dead') && (
           <button
             onClick={reset}
-            className="px-6 py-2 bg-green-500 hover:bg-green-400 text-black font-bold rounded-lg transition-colors"
+            className="flex-1 py-2.5 font-bold rounded-lg text-sm uppercase tracking-wider transition-colors"
+            style={{ background: '#16a34a', color: '#fff' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
+            onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
           >
             {status === 'dead' ? 'Restart' : 'Start'}
           </button>
@@ -234,7 +248,10 @@ export default function SnakeGame() {
         {status === 'running' && (
           <button
             onClick={() => setStatus('paused')}
-            className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg transition-colors"
+            className="flex-1 py-2.5 font-bold rounded-lg text-sm uppercase tracking-wider transition-colors"
+            style={{ background: '#ca8a04', color: '#fff' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#a16207'}
+            onMouseLeave={e => e.currentTarget.style.background = '#ca8a04'}
           >
             Pause
           </button>
@@ -242,7 +259,10 @@ export default function SnakeGame() {
         {status === 'paused' && (
           <button
             onClick={() => setStatus('running')}
-            className="px-6 py-2 bg-green-500 hover:bg-green-400 text-black font-bold rounded-lg transition-colors"
+            className="flex-1 py-2.5 font-bold rounded-lg text-sm uppercase tracking-wider transition-colors"
+            style={{ background: '#16a34a', color: '#fff' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
+            onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
           >
             Resume
           </button>
@@ -250,34 +270,39 @@ export default function SnakeGame() {
       </div>
 
       {/* Mobile D-pad */}
-      <div className="mt-6 grid grid-cols-3 gap-1">
+      <div className="mt-5 grid grid-cols-3 gap-2" style={{ width: 148 }}>
         <div />
         <button
           onPointerDown={() => dir !== Direction.DOWN && setDir(Direction.UP)}
-          className="p-3 bg-gray-700 hover:bg-gray-600 rounded text-white text-xl active:bg-gray-500"
+          className="flex items-center justify-center rounded-lg text-lg font-bold transition-colors"
+          style={{ height: 44, background: '#1e293b', color: '#94a3b8' }}
         >▲</button>
         <div />
         <button
           onPointerDown={() => dir !== Direction.RIGHT && setDir(Direction.LEFT)}
-          className="p-3 bg-gray-700 hover:bg-gray-600 rounded text-white text-xl active:bg-gray-500"
+          className="flex items-center justify-center rounded-lg text-lg font-bold"
+          style={{ height: 44, background: '#1e293b', color: '#94a3b8' }}
         >◀</button>
         <button
           onPointerDown={() => { if (status === 'idle' || status === 'dead') reset(); }}
-          className="p-3 bg-gray-800 rounded text-gray-500 text-xs"
+          className="flex items-center justify-center rounded-lg"
+          style={{ height: 44, background: '#0f172a', color: '#334155', fontSize: 10 }}
         >●</button>
         <button
           onPointerDown={() => dir !== Direction.LEFT && setDir(Direction.RIGHT)}
-          className="p-3 bg-gray-700 hover:bg-gray-600 rounded text-white text-xl active:bg-gray-500"
+          className="flex items-center justify-center rounded-lg text-lg font-bold"
+          style={{ height: 44, background: '#1e293b', color: '#94a3b8' }}
         >▶</button>
         <div />
         <button
           onPointerDown={() => dir !== Direction.UP && setDir(Direction.DOWN)}
-          className="p-3 bg-gray-700 hover:bg-gray-600 rounded text-white text-xl active:bg-gray-500"
+          className="flex items-center justify-center rounded-lg text-lg font-bold"
+          style={{ height: 44, background: '#1e293b', color: '#94a3b8' }}
         >▼</button>
         <div />
       </div>
 
-      <p className="mt-4 text-gray-600 text-xs">WASD or Arrow keys · Space = pause</p>
+      <p className="mt-5 text-xs text-slate-600 tracking-wide">WASD / Arrow keys · Space = pause</p>
     </div>
   );
 }
